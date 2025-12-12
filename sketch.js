@@ -1,24 +1,22 @@
 /*
-  ELEMENTAL LEGENDS: EVOLVED
+  ELEMENTAL LEGENDS: EVOLVED (Versão Final - Full HD)
   -------------------------------------
-  Features:
-  - NEW: "Normal" Class (Neutral, no passive).
-  - NEW: "Type" Stat (Max 3). Level 3 unlocks Evolved Passives.
-  - NEW: Red/Black Lightning VFX for Crits (Stun).
-  - Infinite World Map & Camera.
-  - 6 Classes, RPG Stats, Shop, Relics.
-  - 2 Power-ups per stage.
+  CORREÇÕES:
+  1. Mouse: Cursor do sistema nos menus (sem lag), Mira apenas no jogo.
+  2. Menu Principal: Botões aumentados para resolução 1920x1080.
+  3. Seleção de Classe: Texto na cor preta para melhor leitura.
 */
 
 // ==========================================
 // 1. CONFIGURATION & GLOBALS
 // ==========================================
 
-const WORLD_W = 1600;
-const WORLD_H = 1200;
+const WORLD_W = 4000; 
+const WORLD_H = 3000;
+
 const STAT_CAP = 10;
 const TYPE_CAP = 3;
-const STAGE_TYPES = ["Fire", "Water", "Plant", "Light", "Dark"]; // Map biomes
+const STAGE_TYPES = ["Fire", "Water", "Plant", "Light", "Dark"]; 
 
 let gameState = "MENU"; 
 let previousState = ""; 
@@ -44,12 +42,14 @@ let inventory = { gold: 0 };
 let currentStage = 1;
 let enemiesToSpawn = 0;
 
+let unlockedTypes = ["Fire", "Water", "Plant", "Light", "Dark", "Normal"]; 
+
 // ==========================================
 // 2. SETUP & MAIN LOOP
 // ==========================================
 
 function setup() {
-  createCanvas(800, 600);
+  createCanvas(1920, 1080);
   rectMode(CENTER);
   textAlign(CENTER, CENTER);
   noStroke();
@@ -77,7 +77,47 @@ function draw() {
     case "VICTORY": drawVictory(); break;
   }
   
-  drawCustomCursor();
+  // Gerenciamento do Mouse (Cursor do sistema vs Mira do jogo)
+  handleCursor();
+}
+
+// NOVA FUNÇÃO para corrigir o mouse
+function handleCursor() {
+  if (gameState === "GAME" || gameState === "LEVEL_UP") {
+    noCursor(); // Esconde mouse do sistema
+    // Desenha Mira
+    push();
+    translate(mouseX, mouseY);
+    noFill(); stroke(255); strokeWeight(2);
+    ellipse(0, 0, 20, 20);
+    line(-15, 0, 15, 0);
+    line(0, -15, 0, 15);
+    pop();
+  } else {
+    cursor(ARROW); // Usa o cursor normal do Windows nos menus para não bugar
+  }
+}
+
+function keyPressed() {
+  if (gameState === "GAME" || gameState === "LEVEL_UP" || gameState === "SHOP") {
+    if (key === '8') {
+      enemiesToSpawn = 0;
+      enemies = [];
+      powerups = []; 
+      createFloatText("STAGE SKIPPED", width/2, 100, color(255, 100, 255), true);
+    }
+    if (key === '9') {
+      if (player.upgradeStat("damage")) {
+        createFloatText("DMG UPGRADE!", width/2, height/2 - 100, color(255, 255, 0), true);
+      } else {
+        createFloatText("DMG MAX", width/2, height/2 - 100, color(200), true);
+      }
+    }
+    if (key === '0') {
+      inventory.gold += 1;
+      createFloatText("+1 GOLD", width/2, height/2 - 50, color(255, 215, 0), true);
+    }
+  }
 }
 
 // ==========================================
@@ -90,8 +130,11 @@ function startGame() {
   
   player = new Player();
   player.color = playerColor;
+ 
+  if (playerType === "Perfect") {
+    player.levels.typeLvl = TYPE_CAP; 
+  }
   
-  // Relics
   if (playerRelic === "Life") {
     player.stats.maxHp += 2;
     player.hp = player.stats.maxHp;
@@ -101,7 +144,6 @@ function startGame() {
     player.stats.critChance += 0.10;
   }
   
-  // Plant Base Passive: Start with +1 Max HP
   if (playerType === "Plant") {
     player.upgradeStat("maxHp");
     player.hp = player.stats.maxHp;
@@ -119,29 +161,24 @@ function startStage() {
   
   player.pos = createVector(WORLD_W/2, WORLD_H/2);
   
-  // Plant Passive: Healing per Wave
   if (playerType === "Plant" && currentStage > 1) {
     let healAmt = 1;
-    // Evolved: Heals 1/4 of Total HP
     if (player.levels.typeLvl >= TYPE_CAP) {
       healAmt = floor(player.stats.maxHp / 4);
       if (healAmt < 1) healAmt = 1;
     }
-    
     if (player.hp < player.stats.maxHp) {
       player.hp = min(player.hp + healAmt, player.stats.maxHp);
       createFloatText(`+${healAmt} HP`, width/2, height/2 - 100, color(50, 255, 50), true);
     }
   }
   
-  // Spawn 2 Powerups
-  for (let i = 0; i < 2; i++) powerups.push(new PowerUp());
+  for (let i = 0; i < 4; i++) powerups.push(new PowerUp());
   
   enemiesToSpawn = 5 + floor(currentStage * 1.5);
 }
 
 function runGameLogic(paused = false) {
-  // Camera
   let targetX = player.pos.x - width/2;
   let targetY = player.pos.y - height/2;
   cam.x = lerp(cam.x, targetX, 0.1);
@@ -157,7 +194,6 @@ function runGameLogic(paused = false) {
   
   drawWorldGrid();
   
-  // Entities
   for (let i = powerups.length - 1; i >= 0; i--) {
     let p = powerups[i];
     p.show();
@@ -193,14 +229,18 @@ function runGameLogic(paused = false) {
     p.show();
     if (!paused) {
       p.update();
+      let wasHit = false;
       for (let j = enemies.length - 1; j >= 0; j--) {
         if (p.checkCollision(enemies[j])) {
           handleCombat(p, enemies[j]);
           projectiles.splice(i, 1);
+          wasHit = true;
           break;
         }
       }
-      if (p.toDelete && projectiles[i] === p) projectiles.splice(i, 1);
+      if (!wasHit && p.toDelete) {
+        projectiles.splice(i, 1);
+      }
     }
   }
   
@@ -220,7 +260,6 @@ function runGameLogic(paused = false) {
   
   pop();
   
-  // UI
   drawHUD();
   for (let i = floatText.length - 1; i >= 0; i--) {
     if (floatText[i].isUI) {
@@ -245,10 +284,8 @@ function runGameLogic(paused = false) {
 // ==========================================
 
 function handleCombat(proj, target) {
-  // 1. Calculate Multipliers
   let calc = calculateDamage(playerType, getCurrentStageType());
   
-  // Dark Passive: Stacking Crit
   let actualCritChance = player.stats.critChance;
   if (playerType === "Dark") {
     actualCritChance += (player.darkStacks * 0.10);
@@ -256,51 +293,48 @@ function handleCombat(proj, target) {
   
   let isCrit = random() < actualCritChance;
   
-  // Dark Stacking Logic
   if (playerType === "Dark") {
     if (isCrit) player.darkStacks = min(player.darkStacks + 1, 4);
     else player.darkStacks = 0;
   }
   
-  // 2. Handle Critical Hits
   if (isCrit) {
-    // Ignore disadvantage
     if (calc.modifier < 1.0) calc.modifier = 1.0;
     
-    // Dark Evolved: HitKill
     if (playerType === "Dark" && player.levels.typeLvl >= TYPE_CAP) {
       target.takeDamage(99999);
-      createExplosion(target.pos.x, target.pos.y, color(0), "CRIT");
+      createExplosion(target.pos.x, target.pos.y, color(255, 0, 0), "CRIT"); 
       screenShake(10);
-      return; // Stop processing
+      return;
     }
 
-    // Standard Crit Effects
-    target.stun(60); // 1 sec stun + lightning
+    target.stun(60);
     screenShake(5);
   }
   
-  // 3. Apply Damage
   let dmg = player.stats.damage * calc.modifier;
   if (isCrit) dmg *= player.stats.critDamage;
   
-  target.takeDamage(dmg);
+  let finalDmg = round(dmg); 
   
-  // Visuals
+  let dmgColor = color(255); 
+  if (isCrit) dmgColor = color(255, 0, 0); 
+  
+  target.takeDamage(finalDmg, dmgColor);
+  
   if (!isCrit) {
     if (calc.modifier > 1.0) createExplosion(target.pos.x, target.pos.y, color(255, 200, 0), "ADV");
     else if (calc.modifier < 1.0) createExplosion(target.pos.x, target.pos.y, color(150), "DIS");
     else createExplosion(target.pos.x, target.pos.y, playerColor, "NORMAL");
   }
 
-  // 4. Apply Passives
+  if (playerType === "Perfect") return; 
+  
   let evolved = player.levels.typeLvl >= TYPE_CAP;
 
-  // FIRE: Burn
   if (playerType === "Fire") {
-    let burnDmg = 1 + (player.levels.damage * 0.5);
+    let burnDmg = 1 + (player.levels.damage * 0.5); 
     target.ignite(burnDmg);
-    // Evolved: Spread
     if (evolved) {
       for (let e of enemies) {
         if (e !== target && dist(e.pos.x, e.pos.y, target.pos.x, target.pos.y) < 150) {
@@ -310,26 +344,20 @@ function handleCombat(proj, target) {
     }
   }
   
-  // WATER: Splash
   if (playerType === "Water") {
-    let splashRad = evolved ? 180 : 60; // 3x larger if evolved
+    let splashRad = evolved ? 180 : 60;
     createExplosion(target.pos.x, target.pos.y, color(100, 100, 255), "AOE");
-    
-    // Draw Splash Ring
     fill(100, 100, 255, 100);
     ellipse(target.pos.x, target.pos.y, splashRad * 2);
-    
     for (let e of enemies) {
       if (e !== target && dist(e.pos.x, e.pos.y, target.pos.x, target.pos.y) < splashRad) {
-        e.takeDamage(dmg * 0.5);
+        e.takeDamage(round(finalDmg * 0.5));
         createFloatText("Splash", e.pos.x, e.pos.y - 10, color(100, 200, 255));
       }
     }
   }
 
-  // LIGHT: Pushback
   if (playerType === "Light") {
-    // Evolved: AoE Push
     if (evolved) {
       for (let e of enemies) {
         if (dist(e.pos.x, e.pos.y, target.pos.x, target.pos.y) < 150) {
@@ -342,7 +370,6 @@ function handleCombat(proj, target) {
     }
   }
 
-  // PLANT: Poison (Evolved only)
   if (playerType === "Plant" && evolved) {
     let poisonDmg = 1 + (player.levels.damage * 0.5);
     target.poison(poisonDmg);
@@ -351,16 +378,16 @@ function handleCombat(proj, target) {
 
 function calculateDamage(atk, def) {
   let m = 1.0;
+  
+  if (atk === "Perfect") return { modifier: 1.25 };
   if (atk === "Normal") return { modifier: 1.0 };
   
-  // Advantages (+20%)
   if (atk === "Water" && (def === "Water" || def === "Fire")) m = 1.2;
   if (atk === "Fire" && (def === "Fire" || def === "Plant")) m = 1.2;
   if (atk === "Plant" && (def === "Plant" || def === "Water")) m = 1.2;
   if (atk === "Light" && (def === "Water" || def === "Fire" || def === "Plant")) m = 1.2;
   if (atk === "Dark" && (def === "Water" || def === "Fire" || def === "Plant")) m = 1.2;
   
-  // Disadvantages
   if (atk === "Water" && ["Plant", "Light", "Dark"].includes(def)) m = 0.8;
   if (atk === "Fire" && ["Water", "Light", "Dark"].includes(def)) m = 0.8;
   if (atk === "Plant" && ["Fire", "Light", "Dark"].includes(def)) m = 0.8;
@@ -382,7 +409,7 @@ class Player {
     this.darkStacks = 0;
     
     this.stats = {
-      maxHp: 3, damage: 5, speed: 4, range: 150, // Reduced base range
+      maxHp: 3, damage: 5, speed: 4, range: 150,
       critChance: 0.05, critDamage: 1.5, atkSpeed: 1
     };
     
@@ -430,14 +457,13 @@ class Player {
   show() {
     push();
     translate(this.pos.x, this.pos.y);
-    fill(0, 100); ellipse(0, 18, 32, 12); // Shadow
+    fill(0, 100); ellipse(0, 18, 32, 12);
     
     if (this.invuln > 0 && frameCount % 6 < 3) fill(255);
     else fill(playerColor);
     
     rect(0, 0, this.size, this.size, 6);
     
-    // Visual for Type Level 3 (Evolved)
     if (this.levels.typeLvl >= TYPE_CAP) {
       noFill(); stroke(255); strokeWeight(2);
       rect(0, 0, this.size+8, this.size+8, 4);
@@ -449,292 +475,271 @@ class Player {
     if (this.invuln > 0) return;
     this.hp -= amt;
     
-    // Light Passive: Invuln
     if (playerType === "Light") {
-      // Evolved: 10s, Normal: 5s
       let dur = (this.levels.typeLvl >= TYPE_CAP) ? 600 : 300;
       this.invuln = dur;
       createFloatText("SHIELD!", this.pos.x, this.pos.y - 40, color(255, 255, 200));
     } else {
-      this.invuln = 90; // 1.5s default
+      this.invuln = 90;
     }
     
-    createFloatText("-" + amt, this.pos.x, this.pos.y - 30, color(255, 50, 50));
-    screenShake(10);
+    createFloatText("-" + amt, this.pos.x, this.pos.y - 30, color(255, 100, 100));
+    screenShake(5);
+    if (this.hp <= 0) gameState = "GAME_OVER";
   }
   
-  upgradeStat(key) {
-    let limit = (key === "typeLvl") ? TYPE_CAP : STAT_CAP;
-    if (this.levels[key] >= limit) return false;
+  upgradeStat(statKey) {
+    if (this.levels[statKey] === STAT_CAP && statKey !== "typeLvl") return false;
+    if (this.levels[statKey] === TYPE_CAP && statKey === "typeLvl") return false;
     
-    this.levels[key]++;
+    this.levels[statKey]++;
     
-    let s = this.stats;
-    switch(key) {
-      case "maxHp": s.maxHp += 1; this.hp += 1; break;
-      case "damage": s.damage += 2; break;
-      case "speed": s.speed += 0.4; break;
-      case "range": s.range += 30; break;
-      case "critChance": s.critChance += 0.05; break;
-      case "critDamage": s.critDamage += 0.25; break;
-      case "atkSpeed": s.atkSpeed += 1; break;
-      case "typeLvl": 
-        createFloatText("EVOLVING...", this.pos.x, this.pos.y-50, color(255,215,0), true);
-        break;
-    }
+    if (statKey === "maxHp") { this.stats.maxHp++; this.hp++; }
+    else if (statKey === "damage") this.stats.damage += 2;
+    else if (statKey === "speed") this.stats.speed += 0.5;
+    else if (statKey === "range") this.stats.range += 30;
+    else if (statKey === "critChance") this.stats.critChance = min(0.9, this.stats.critChance + 0.05);
+    else if (statKey === "critDamage") this.stats.critDamage += 0.25;
+    else if (statKey === "atkSpeed") this.stats.atkSpeed += 0.5;
+    
     return true;
   }
 }
 
 class Enemy {
-  constructor(x, y) {
+  constructor(x, y, type) {
     this.pos = createVector(x, y);
-    this.size = 28;
-    this.maxHp = 15 + (currentStage * 8);
+    this.size = 24;
+    this.type = type;
+    this.color = getTypeColor(type);
+    this.maxHp = 2 + floor(currentStage * 0.5);
     this.hp = this.maxHp;
-    this.baseSpeed = 2.2 + (currentStage * 0.1);
-    
-    this.type = getCurrentStageType();
-    this.col = getTypeColor(this.type);
-    
-    this.stunTimer = 0;
-    this.burnTime = 0;
+    this.speed = 1.5 + (currentStage * 0.05);
+    this.isStunned = 0;
+    this.isBurning = 0;
+    this.isPoisoned = 0;
     this.burnDmg = 0;
-    this.poisonTime = 0;
     this.poisonDmg = 0;
+    this.pushVec = createVector(0, 0);
   }
   
   update() {
-    // Burn (1/5 dmg calc is done at trigger)
-    if (this.burnTime > 0) {
-      this.burnTime--;
-      if (this.burnTime % 60 === 0) { 
-        this.takeDamage(this.burnDmg);
-        createFloatText("Burn", this.pos.x, this.pos.y - 20, color(255, 100, 0));
-      }
-    }
-
-    // Poison (Grass Evolved)
-    if (this.poisonTime > 0) {
-      this.poisonTime--;
-      if (this.poisonTime % 60 === 0) {
-        this.takeDamage(this.poisonDmg);
-        createFloatText("Psn", this.pos.x, this.pos.y - 20, color(100, 255, 100));
-      }
+    if (this.pushVec.mag() > 0.5) {
+      this.pos.add(this.pushVec);
+      this.pushVec.mult(0.9);
+      return;
+    } else {
+      this.pushVec = createVector(0, 0);
     }
     
-    if (this.stunTimer > 0) {
-      this.stunTimer--;
-      return; // Stunned
+    if (this.isStunned > 0) {
+      this.isStunned--;
+      return;
+    }
+  
+    if (this.isBurning > 0) {
+      this.isBurning--;
+      if (frameCount % 30 === 0) this.takeDamage(this.burnDmg, color(255, 150, 0));
+    }
+    if (this.isPoisoned > 0) {
+      this.isPoisoned--;
+      if (frameCount % 60 === 0) this.takeDamage(this.poisonDmg, color(100, 255, 100));
     }
     
     let dir = p5.Vector.sub(player.pos, this.pos);
-    dir.normalize().mult(this.baseSpeed);
+    dir.setMag(this.speed);
     this.pos.add(dir);
-    
-    for (let other of enemies) {
-      if (other !== this) {
-        let d = dist(this.pos.x, this.pos.y, other.pos.x, other.pos.y);
-        if (d < this.size) {
-          let push = p5.Vector.sub(this.pos, other.pos).setMag(1);
-          this.pos.add(push);
-        }
-      }
-    }
+  
+    this.pos.x = constrain(this.pos.x, this.size, WORLD_W - this.size);
+    this.pos.y = constrain(this.pos.y, this.size, WORLD_H - this.size);
   }
   
   show() {
     push();
     translate(this.pos.x, this.pos.y);
-    fill(0, 100); ellipse(0, 15, 26, 8);
+    fill(this.color);
+    rect(0, 0, this.size, this.size, 4);
     
-    noStroke(); fill(this.col);
-    ellipse(0, 0, this.size);
+    if (this.isStunned > 0 && frameCount % 10 < 5) fill(255, 255, 0); 
+    else if (this.isBurning > 0) fill(255, 100, 0);
+    else if (this.isPoisoned > 0) fill(50, 200, 50);
+    else fill(255);
+    ellipse(0, -this.size/2 - 2, 4);
     
-    // Visual Status
-    if (this.burnTime > 0 && frameCount % 10 < 5) {
-      fill(255, 100, 0); ellipse(0, -5, 10);
-    }
-    if (this.poisonTime > 0 && frameCount % 10 < 5) {
-      fill(50, 255, 50); ellipse(5, -5, 8);
-    }
-
-    // Lightning VFX (Stun/Crit)
-    if (this.stunTimer > 0) {
-      this.drawLightning();
-    }
-    
-    // HP Bar
-    let pct = constrain(this.hp / this.maxHp, 0, 1);
-    fill(50); rect(0, -25, 30, 4);
-    fill(255, 50, 50); rect(-15 + (15*pct), -25, 30*pct, 4);
+    let hpW = (this.hp / this.maxHp) * this.size;
+    fill(100); rect(0, this.size/2 + 5, this.size, 4);
+    fill(255, 0, 0); rect(-this.size/2 + hpW/2, this.size/2 + 5, hpW, 4);
     
     pop();
   }
-
-  drawLightning() {
-    strokeWeight(2);
-    noFill();
-    for(let i=0; i<3; i++) {
-      let angle = random(TWO_PI);
-      let len = this.size * 1.5;
-      let startX = cos(angle) * (this.size/2);
-      let startY = sin(angle) * (this.size/2);
-      
-      // Black/Red Lightning
-      stroke(random() > 0.5 ? color(255, 0, 0) : color(0));
-      
-      beginShape();
-      vertex(startX, startY);
-      vertex(startX + random(-5,5), startY + random(-5,5) - 10);
-      vertex(startX + random(-10,10), startY + random(-10,10) - 20);
-      endShape();
+  
+  takeDamage(amt, txtColor = color(255)) { 
+    this.hp -= amt;
+    createFloatText("-" + amt, this.pos.x, this.pos.y - 10, txtColor);
+    
+    if (this.hp <= 0) {
+      inventory.gold++;
+      createFloatText("+1", this.pos.x, this.pos.y, color(255, 215, 0));
+      let index = enemies.indexOf(this);
+      if (index > -1) enemies.splice(index, 1);
     }
-    noStroke();
   }
   
   checkCollision(target) {
-    return dist(this.pos.x, this.pos.y, target.pos.x, target.pos.y) < (this.size/2 + target.size/2);
+    return dist(this.pos.x, this.pos.y, target.pos.x, target.pos.y) < (this.size + target.size) / 2;
   }
   
-  pushBack(force) {
-    let dir = p5.Vector.sub(this.pos, player.pos).normalize().mult(force);
-    this.pos.add(dir);
-    this.pos.x = constrain(this.pos.x, 20, WORLD_W-20);
-    this.pos.y = constrain(this.pos.y, 20, WORLD_H-20);
-  }
-  
-  takeDamage(val) {
-    this.hp -= val;
-    createFloatText(floor(val), this.pos.x, this.pos.y - 10, color(255));
-    if (this.hp <= 0) {
-      let idx = enemies.indexOf(this);
-      if (idx > -1) enemies.splice(idx, 1);
-    }
-  }
-  
-  stun(frames) {
-    this.stunTimer = frames;
+  stun(duration) {
+    this.isStunned = duration;
   }
   
   ignite(dmg) {
-    this.burnTime = 180; 
-    // Passive says "1/5 of the damage" for spread, but usually apply full burn calc in handleCombat
-    // Here we store the tick damage.
-    this.burnDmg = dmg / 5; 
-    if (this.burnDmg < 1) this.burnDmg = 1;
+    this.isBurning = 180; 
+    this.burnDmg = dmg;
   }
-
+  
   poison(dmg) {
-    this.poisonTime = 180;
-    this.poisonDmg = dmg / 5;
-    if (this.poisonDmg < 1) this.poisonDmg = 1;
+    this.isPoisoned = 300; 
+    this.poisonDmg = dmg;
+  }
+  
+  pushBack(strength) {
+    let dir = p5.Vector.sub(this.pos, player.pos);
+    dir.normalize().mult(strength / 100); 
+    this.pushVec.add(dir);
   }
 }
 
 class Projectile {
-  constructor(x, y, dx, dy, rng) {
-    this.start = createVector(x, y);
+  constructor(x, y, dx, dy, range) {
     this.pos = createVector(x, y);
-    this.vel = createVector(dx, dy).mult(9);
-    this.range = rng;
+    this.dir = createVector(dx, dy).normalize();
+    this.speed = 8;
+    this.start = createVector(x, y);
+    this.range = range;
     this.toDelete = false;
+    this.color = playerColor;
   }
+  
   update() {
-    this.pos.add(this.vel);
-    if (this.pos.dist(this.start) > this.range) this.toDelete = true;
-    if (this.pos.x < 0 || this.pos.x > WORLD_W || this.pos.y < 0 || this.pos.y > WORLD_H) this.toDelete = true;
+    this.pos.add(this.dir.copy().mult(this.speed));
+    if (dist(this.pos.x, this.pos.y, this.start.x, this.start.y) > this.range) {
+      this.toDelete = true;
+    }
   }
+  
   show() {
-    push();
-    translate(this.pos.x, this.pos.y);
-    fill(255, 255, 150); ellipse(0, 0, 14);
-    pop();
+    fill(this.color);
+    ellipse(this.pos.x, this.pos.y, 10, 10);
   }
-  checkCollision(e) { return this.pos.dist(e.pos) < (7 + e.size/2); }
+  
+  checkCollision(target) {
+    return dist(this.pos.x, this.pos.y, target.pos.x, target.pos.y) < 15;
+  }
 }
 
 class PowerUp {
   constructor() {
-    this.pos = createVector(random(100, WORLD_W-100), random(100, WORLD_H-100));
-    this.angle = 0;
+    this.pos = createVector(random(50, WORLD_W - 50), random(50, WORLD_H - 50));
+    this.size = 20;
   }
+  
   show() {
-    this.angle += 0.05;
-    push();
-    translate(this.pos.x, this.pos.y);
-    rotate(this.angle);
-    fill(50, 255, 50);
-    triangle(0, -12, -10, 8, 10, 8);
-    pop();
+    fill(255, 255, 0);
+    rect(this.pos.x, this.pos.y, this.size, this.size, 4);
+    fill(0);
+    textSize(10);
+    text("UP", this.pos.x, this.pos.y);
   }
-  checkCollision(p) { return this.pos.dist(p.pos) < 25; }
-}
-
-class Particle {
-  constructor(x, y, col, type) {
-    this.pos = createVector(x, y);
-    this.vel = p5.Vector.random2D().mult(random(1, 4));
-    this.col = col;
-    this.life = 255;
-    this.type = type;
-  }
-  update() { this.pos.add(this.vel); this.life -= 12; }
-  show() {
-    noStroke();
-    let c = color(this.col); c.setAlpha(this.life); fill(c);
-    if (this.type === "CRIT") rect(this.pos.x, this.pos.y, 6, 6);
-    else ellipse(this.pos.x, this.pos.y, 5);
+  
+  checkCollision(target) {
+    return dist(this.pos.x, this.pos.y, target.pos.x, target.pos.y) < this.size;
   }
 }
 
 class FloatText {
-  constructor(msg, x, y, col, isUI=false) {
-    this.msg = msg; this.pos = createVector(x, y); this.col = col; this.life = 60; this.isUI = isUI;
+  constructor(txt, x, y, clr, isUI = false) {
+    this.txt = txt;
+    this.pos = createVector(x, y);
+    this.clr = clr;
+    this.life = 120; 
+    this.speed = isUI ? 0.5 : -0.5;
+    this.isUI = isUI; 
+    this.size = 20;
+    if (txt.includes("-")) this.size = 18;
+    if (txt.includes("CRIT")) this.size = 28;
   }
-  update() { this.pos.y -= 0.8; this.life--; }
+  
+  update() {
+    this.pos.y += this.speed;
+    this.life--;
+    this.size = lerp(this.size, 10, 0.01);
+  }
+  
   show() {
-    let alpha = map(this.life, 0, 60, 0, 255);
-    let c = color(this.col); c.setAlpha(alpha); fill(c);
-    textSize(this.isUI ? 24 : 14); textStyle(BOLD);
-    text(this.msg, this.pos.x, this.pos.y); textStyle(NORMAL);
+    fill(this.clr, map(this.life, 0, 120, 0, 255));
+    textSize(this.size);
+    text(this.txt, this.pos.x, this.pos.y);
+  }
+}
+
+class Particle {
+  constructor(x, y, clr) {
+    this.pos = createVector(x, y);
+    this.vel = p5.Vector.random2D().mult(random(1, 4));
+    this.clr = clr;
+    this.life = random(30, 60);
+    this.size = random(3, 8);
+  }
+  
+  update() {
+    this.pos.add(this.vel);
+    this.life--;
+    this.vel.mult(0.9);
+  }
+  
+  show() {
+    fill(this.clr, map(this.life, 0, 60, 0, 255));
+    ellipse(this.pos.x, this.pos.y, this.size);
   }
 }
 
 // ==========================================
-// 6. UI & MENUS
+// 6. UI & MENUS (Atualizado)
 // ==========================================
 
 function drawMenu() {
   drawMenuBg();
-  fill(255); textSize(50); textStyle(BOLD);
-  text("ELEMENTAL LEGENDS", width/2, 120);
+  fill(255); textSize(70); textStyle(BOLD);
+  text("ELEMENTAL LEGENDS", width/2, 180);
   textStyle(NORMAL);
-  let y = 280;
-  drawBtn("PLAY", width/2, y, 200, 50, () => gameState = "DIFFICULTY");
-  drawBtn("CUSTOMIZE", width/2, y+70, 200, 50, () => gameState = "CUSTOMIZE");
-  drawBtn("HOW TO PLAY", width/2, y+140, 200, 50, () => gameState = "HOW_TO");
+  
+  let y = 450;
+  // Botões maiores
+  drawBtn("PLAY", width/2, y, 400, 80, () => gameState = "DIFFICULTY");
+  drawBtn("CUSTOMIZE", width/2, y+100, 400, 80, () => gameState = "CUSTOMIZE");
+  drawBtn("HOW TO PLAY", width/2, y+200, 400, 80, () => gameState = "HOW_TO");
 }
 
 function drawDifficultySelect() {
   drawMenuBg(); drawTitle("DIFFICULTY");
-  drawBtn("EASY (10 Stages)", width/2, 220, 300, 60, () => { difficulty="Easy"; maxStages=10; gameState="MODE"; });
-  drawBtn("MEDIUM (20 Stages)", width/2, 300, 300, 60, () => { difficulty="Medium"; maxStages=20; gameState="MODE"; });
-  drawBtn("HARD (30 Stages)", width/2, 380, 300, 60, () => { difficulty="Hard"; maxStages=30; gameState="MODE"; });
+  drawBtn("EASY (10 Stages)", width/2, 350, 500, 80, () => { difficulty="Easy"; maxStages=10; gameState="MODE"; });
+  drawBtn("MEDIUM (20 Stages)", width/2, 450, 500, 80, () => { difficulty="Medium"; maxStages=20; gameState="MODE"; });
+  drawBtn("HARD (30 Stages)", width/2, 550, 500, 80, () => { difficulty="Hard"; maxStages=30; gameState="MODE"; });
   drawBack("MENU");
 }
 
 function drawModeSelect() {
   drawMenuBg(); drawTitle("GAME MODE");
-  drawBtn("CAMPAIGN\n(Reach end)", width/2, 250, 300, 80, () => { gameMode="Campaign"; gameState="SELECT_TYPE"; });
-  drawBtn("ENDLESS\n(Survival)", width/2, 350, 300, 80, () => { gameMode="Endless"; gameState="SELECT_TYPE"; });
+  drawBtn("CAMPAIGN\n(Reach end)", width/2, 400, 500, 100, () => { gameMode="Campaign"; gameState="SELECT_TYPE"; });
+  drawBtn("ENDLESS\n(Survival)", width/2, 550, 500, 100, () => { gameMode="Endless"; gameState="SELECT_TYPE"; });
   drawBack("DIFFICULTY");
 }
 
 function drawTypeSelect() {
   drawMenuBg(); drawTitle("CHOOSE CLASS");
-  let types = ["Fire", "Water", "Plant", "Light", "Dark", "Normal"];
-  let y = 140;
+  let types = unlockedTypes; 
+  let y = 180;
   
   for (let t of types) {
     let desc = "";
@@ -744,18 +749,28 @@ function drawTypeSelect() {
     if (t==="Light") desc = "(Shield)";
     if (t==="Dark") desc = "(Crit)";
     if (t==="Normal") desc = "(Neutral)";
+    if (t==="Perfect") desc = "(+25% Dano Universal)";
     
-    drawBtn(`${t} ${desc}`, width/2, y, 400, 40, () => { playerType = t; gameState = "SELECT_RELIC"; }, getTypeColor(t));
-    y += 50;
+    // Cor do texto adicionada como argumento final (color(0) = preto)
+    drawBtn(`${t} ${desc}`, width/2, y, 600, 55, () => { 
+      playerType = t; 
+      if (t === "Perfect") {
+        playerRelic = "None"; 
+        startGame();
+      } else {
+        gameState = "SELECT_RELIC"; 
+      }
+    }, getTypeColor(t), color(0));
+    y += 70;
   }
   drawBack("MODE");
 }
 
 function drawRelicSelect() {
   drawMenuBg(); drawTitle("CHOOSE RELIC");
-  drawBtn("RELIC OF LIFE\n(+2 Max HP)", width/2, 220, 300, 60, () => { playerRelic="Life"; startGame(); });
-  drawBtn("RELIC OF DEATH\n(+10% Crit Chance)", width/2, 300, 300, 60, () => { playerRelic="Death"; startGame(); });
-  drawBtn("RELIC OF GREED\n(Luck for Gold)", width/2, 380, 300, 60, () => { playerRelic="Greed"; startGame(); });
+  drawBtn("RELIC OF LIFE\n(+2 Max HP)", width/2, 350, 500, 80, () => { playerRelic="Life"; startGame(); });
+  drawBtn("RELIC OF DEATH\n(+10% Crit Chance)", width/2, 450, 500, 80, () => { playerRelic="Death"; startGame(); });
+  drawBtn("RELIC OF GREED\n(Luck for Gold)", width/2, 550, 500, 80, () => { playerRelic="Greed"; startGame(); });
   drawBack("SELECT_TYPE");
 }
 
@@ -763,41 +778,42 @@ function drawCustomize() {
   drawMenuBg(); drawTitle("COLOR");
   let colors = [color(0,255,255), color(255,50,50), color(50,255,50), color(255,255,0), color(255,0,255), color(255)];
   for(let i=0; i<colors.length; i++) {
-    let x = (width/2 - 150) + (i*60);
+    let x = (width/2 - 250) + (i*100);
     fill(colors[i]);
-    if (dist(mouseX, mouseY, x, height/2) < 20) {
+    if (dist(mouseX, mouseY, x, height/2) < 30) {
       stroke(255); strokeWeight(3);
       if (mouseIsPressed) { playerColor = colors[i]; player.color = playerColor; }
     } else noStroke();
-    ellipse(x, height/2, 40);
+    ellipse(x, height/2, 60);
   }
-  player.pos.set(width/2, 450); player.show();
+  player.pos.set(width/2, 650); player.show();
   drawBack("MENU");
 }
 
 function drawShop() {
   background(30, 20, 20); drawTitle("MERCHANT");
-  fill(255, 215, 0); textSize(24); text(`GOLD: ${inventory.gold}`, width/2, 140);
+  fill(255, 215, 0); textSize(24); textAlign(CENTER, CENTER); 
+  text(`GOLD: ${inventory.gold}`, width/2, 140);
   
   let healCost = 2;
   let canHeal = inventory.gold >= healCost && player.hp < player.stats.maxHp;
-  drawBtn(`FULL HEAL\n${healCost} Gold`, width/2 - 150, 300, 200, 100, () => {
+  drawBtn(`FULL HEAL\n${healCost} Gold`, width/2 - 200, 400, 300, 150, () => {
     if (canHeal) { inventory.gold -= healCost; player.hp = player.stats.maxHp; }
   }, canHeal ? color(50, 150, 50) : color(100));
   
   let upCost = 1;
   let canUp = inventory.gold >= upCost;
-  drawBtn(`UPGRADE\n${upCost} Gold`, width/2 + 150, 300, 200, 100, () => {
+  drawBtn(`UPGRADE\n${upCost} Gold`, width/2 + 200, 400, 300, 150, () => {
     if (canUp) { inventory.gold -= upCost; previousState = "SHOP"; gameState = "LEVEL_UP"; }
   }, canUp ? color(50, 100, 200) : color(100));
   
-  drawBtn("NEXT STAGE", width/2, 500, 200, 60, () => { startStage(); gameState = "GAME"; });
+  drawBtn("NEXT STAGE", width/2, 700, 300, 80, () => { startStage(); gameState = "GAME"; });
 }
 
 function drawLevelUpOverlay() {
   fill(0, 0, 0, 220); rect(width/2, height/2, width, height);
-  fill(255); textSize(30); text("LEVEL UP!", width/2, 60);
-  textSize(16); text("Select Upgrade", width/2, 90);
+  fill(255); textSize(50); text("LEVEL UP!", width/2, 100);
+  textSize(24); text("Select Upgrade", width/2, 150);
   
   let stats = [
     {k:"maxHp", n:"Max HP"}, {k:"damage", n:"Damage"}, 
@@ -806,13 +822,11 @@ function drawLevelUpOverlay() {
     {k:"critDamage", n:"Crit Dmg"}, {k:"typeLvl", n:"Type"}
   ];
   
-  // Grid: 2 columns, 4 rows
-  let startY = 140;
+  let startY = 250;
   for(let i=0; i<stats.length; i++) {
     let s = stats[i];
     
-    // Normal Type cannot upgrade "Type"
-    if (s.k === "typeLvl" && playerType === "Normal") continue;
+    if (s.k === "typeLvl" && (playerType === "Normal" || playerType === "Perfect")) continue;
 
     let lvl = player.levels[s.k];
     let limit = (s.k === "typeLvl") ? TYPE_CAP : STAT_CAP;
@@ -823,13 +837,13 @@ function drawLevelUpOverlay() {
     
     let col = (i % 2); 
     let row = floor(i / 2);
-    let x = (col === 0) ? width/2 - 110 : width/2 + 110;
-    let y = startY + row * 65;
+    let x = (col === 0) ? width/2 - 200 : width/2 + 200;
+    let y = startY + row * 100;
     
     if (isMax) {
-      fill(80); rect(x, y, 200, 50, 8); fill(150); textSize(14); text(txt, x, y);
+      fill(80); rect(x, y, 350, 80, 8); fill(150); textSize(20); text(txt, x, y);
     } else {
-      drawBtn(txt, x, y, 200, 50, () => {
+      drawBtn(txt, x, y, 350, 80, () => {
         player.upgradeStat(s.k);
         gameState = (previousState === "SHOP") ? "SHOP" : "GAME";
       });
@@ -838,100 +852,46 @@ function drawLevelUpOverlay() {
 }
 
 function drawHUD() {
-  fill(0, 150); rect(width/2, 35, width, 70);
-  fill(255); textSize(20); textAlign(LEFT, CENTER);
-  text(`HP: ${player.hp} / ${player.stats.maxHp}`, 20, 35);
-  text(`GOLD: ${inventory.gold}`, 160, 35);
+  fill(0, 150); rect(width/2, 40, width, 80);
+  fill(255); textSize(24); textAlign(LEFT, CENTER);
+  text(`HP: ${player.hp} / ${player.stats.maxHp}`, 40, 40);
+  text(`GOLD: ${inventory.gold}`, 250, 40);
   textAlign(CENTER, CENTER);
-  text(`STAGE ${currentStage}`, width/2, 25);
-  fill(getTypeColor(getCurrentStageType())); textSize(14);
-  text(`BIOME: ${getCurrentStageType()}`, width/2, 50);
-  textAlign(RIGHT, CENTER); fill(255); textSize(18);
-  text(gameMode, width-20, 25);
-  textSize(14);
-  text(`${playerType} (T${player.levels.typeLvl})`, width-20, 50);
+  text(`STAGE ${currentStage}`, width/2, 30);
+  fill(getTypeColor(getCurrentStageType())); textSize(18);
+  text(`BIOME: ${getCurrentStageType()}`, width/2, 60);
+  textAlign(RIGHT, CENTER); fill(255); textSize(20);
+  text(gameMode, width-40, 30);
+  textSize(16);
+  text(`${playerType} (T${player.levels.typeLvl})`, width-40, 60);
 }
 
 function drawGameOver() {
   fill(0, 200); rect(width/2, height/2, width, height);
-  fill(255, 50, 50); textSize(60); text("DEFEAT", width/2, 250);
-  fill(255); textSize(24); text(`Stage: ${currentStage}`, width/2, 320);
-  drawBtn("MENU", width/2, 450, 200, 60, () => gameState = "MENU");
+  textAlign(CENTER, CENTER); textStyle(BOLD); 
+  fill(255, 50, 50); textSize(100); text("DEFEAT", width/2, height/2 - 100);
+  textStyle(NORMAL); 
+  fill(255); textSize(40); text(`Stage: ${currentStage}`, width/2, height/2 + 20);
+  drawBtn("MENU", width/2, height/2 + 150, 300, 80, () => gameState = "MENU");
 }
 
 function drawVictory() {
-  background(20, 50, 20); fill(50, 255, 50); textSize(60); text("VICTORY", width/2, 250);
-  drawBtn("MENU", width/2, 450, 200, 60, () => gameState = "MENU");
-}
-
-// ==========================================
-// 7. UTILS & HELPERS
-// ==========================================
-
-function completeStage() {
-  let g = 1;
-  if (playerRelic === "Greed" && random() < 0.33) g = 2;
-  inventory.gold += g;
-  createFloatText(`+${g} GOLD`, width/2, height/2-50, color(255,215,0), true);
-  if (gameMode === "Campaign" && currentStage >= maxStages) { gameState = "VICTORY"; return; }
-  currentStage++;
-  if ((currentStage - 1) % 5 === 0) gameState = "SHOP";
-  else startStage();
-}
-
-function spawnEnemy() {
-  let r = random(400, 600); let a = random(TWO_PI);
-  let x = player.pos.x + cos(a)*r; let y = player.pos.y + sin(a)*r;
-  x = constrain(x, 50, WORLD_W-50); y = constrain(y, 50, WORLD_H-50);
-  enemies.push(new Enemy(x, y));
-}
-
-function drawWorldGrid() {
-  let t = getCurrentStageType();
-  let c1, c2;
-  if (t === "Fire") { c1=color(50,20,20); c2=color(40,15,15); }
-  else if (t === "Water") { c1=color(20,30,50); c2=color(15,20,40); }
-  else if (t === "Plant") { c1=color(20,40,20); c2=color(15,30,15); }
-  else if (t === "Light") { c1=color(60,60,50); c2=color(50,50,40); }
-  else { c1=color(40,20,50); c2=color(30,15,40); }
-  background(c1); fill(c2); let s = 100;
-  for(let x=0; x<WORLD_W; x+=s) { for(let y=0; y<WORLD_H; y+=s) { if ((x+y)%(s*2)===0) rect(x+s/2, y+s/2, s, s); } }
-  noFill(); stroke(255, 50); strokeWeight(10); rect(WORLD_W/2, WORLD_H/2, WORLD_W, WORLD_H);
-}
-
-function createExplosion(x, y, col, type) {
-  for(let i=0; i<8; i++) particles.push(new Particle(x, y, col, type));
-}
-
-function createFloatText(msg, x, y, col, isUI=false) {
-  floatText.push(new FloatText(msg, x, y, col, isUI));
-}
-
-function drawBtn(label, x, y, w, h, cb, col=color(60,60,80)) {
-  let hover = mouseX > x-w/2 && mouseX < x+w/2 && mouseY > y-h/2 && mouseY < y+h/2;
-  push();
-  if (hover) {
-    fill(lerpColor(col, color(255), 0.2)); cursor('pointer');
-    if (mouseIsPressed && !mouseWasPressed) { cb(); mouseWasPressed = true; }
-  } else fill(col);
-  rect(x, y, w, h, 8);
-  fill(255); noStroke(); 
-  textSize(14); // Smaller text to prevent overflow
-  text(label, x, y);
-  pop();
-}
-
-function drawBack(state) {
-  drawBtn("BACK", width/2, height-60, 150, 40, () => gameState = state);
-}
-
-function drawTitle(t) {
-  fill(255); textSize(36); textStyle(BOLD); text(t, width/2, 80); textStyle(NORMAL);
+  background(20, 50, 20); 
+  textAlign(CENTER, CENTER); textStyle(BOLD); 
+  fill(50, 255, 50); textSize(100); text("VICTORY", width/2, height/2 - 100);
+  textStyle(NORMAL);
+ 
+  if (gameMode === "Campaign" && !unlockedTypes.includes("Perfect")) {
+    unlockedTypes.push("Perfect");
+    createFloatText("TIPO PERFECT DESBLOQUEADO!", width/2, height/2 + 20, color(128, 0, 0), true);
+  }
+  
+  drawBtn("MENU", width/2, height/2 + 150, 300, 80, () => gameState = "MENU");
 }
 
 function drawHowTo() {
   drawMenuBg(); drawTitle("INSTRUCTIONS");
-  textAlign(LEFT, TOP); fill(200); textSize(15);
+  textAlign(LEFT, TOP); fill(200); textSize(24);
   let txt = 
 `WASD to Move, ARROWS to Shoot.
 
@@ -942,12 +902,15 @@ PASSIVES (Evolve at Type Lv3):
 - Light: Shield (Evolved: 10s + AoE Push).
 - Dark: Crit Stack (Evolved: Insta-Kill).
 - Normal: No passive, no advantages.
+- Perfect: +25% Universal Damage (No Passive).
 
 MECHANICS:
 - Water>Fire>Plant>Water.
 - Light/Dark beat others.
-- Crits STUN enemies.`;
-  text(txt, width/2 - 200, 160);
+- Crits STUN enemies.
+
+CHEATS: 8=Skip Stage, 9=DMG Up, 0=Gold.`;
+  text(txt, width/2 - 300, 250);
   textAlign(CENTER, CENTER);
   drawBack("MENU");
 }
@@ -957,6 +920,109 @@ function drawMenuBg() {
   for(let i=0; i<width; i+=40) line(i,0,i,height);
   for(let i=0; i<height; i+=40) line(0,i,width,i);
   noStroke();
+  textAlign(CENTER, CENTER); 
+  textStyle(NORMAL); 
+}
+
+// ==========================================
+// 7. AUXILIARY FUNCTIONS
+// ==========================================
+
+function getCurrentStageType() {
+  return STAGE_TYPES[(currentStage - 1) % STAGE_TYPES.length];
+}
+
+function spawnEnemy() {
+  let type = getCurrentStageType();
+  let angle = random(TWO_PI);
+  let r = random(width/2 + 50, width/2 + 100);
+  let x = player.pos.x + r * cos(angle);
+  let y = player.pos.y + r * sin(angle);
+  enemies.push(new Enemy(x, y, type));
+}
+
+function drawWorldGrid() {
+  let stageType = getCurrentStageType();
+  let c = getTypeColor(stageType);
+  background(red(c)*0.2, green(c)*0.2, blue(c)*0.2);
+  
+  stroke(red(c)*0.5, green(c)*0.5, blue(c)*0.5, 100);
+  for(let x=0; x<WORLD_W; x+=40) line(x, 0, x, WORLD_H);
+  for(let y=0; y<WORLD_H; y+=40) line(0, y, WORLD_W, y);
+  noStroke();
+}
+
+// ATUALIZADO: Agora aceita txtClr (cor do texto)
+function drawBtn(txt, x, y, w, h, callback, clr = color(50, 50, 50), txtClr = color(255)) {
+  push();
+  let over = mouseX > x - w/2 && mouseX < x + w/2 && mouseY > y - h/2 && mouseY < y + h/2;
+  
+  if (over) {
+    clr = lerpColor(clr, color(150, 150, 150), 0.5);
+    if (mouseIsPressed && mouseButton === LEFT) clr = color(0, 0, 0);
+    if (mouseIsPressed && mouseButton === LEFT && !btnClicked) {
+      callback();
+      btnClicked = true;
+    }
+  }
+  
+  fill(clr);
+  rect(x, y, w, h, 8);
+  fill(txtClr); // Usa a cor de texto passada
+  textSize(24);
+  text(txt, x, y);
+  pop();
+}
+
+function drawTitle(txt) {
+  fill(255);
+  textSize(60);
+  textStyle(BOLD);
+  text(txt, width/2, 80);
+  textStyle(NORMAL);
+}
+
+function drawBack(targetState) {
+  drawBtn("BACK", 100, height - 60, 150, 60, () => gameState = targetState);
+}
+
+function createFloatText(txt, x, y, clr, isUI = false) {
+  floatText.push(new FloatText(txt, x, y, clr, isUI));
+}
+
+function createExplosion(x, y, clr, type) {
+  let count = (type === "CRIT") ? 20 : 10;
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(x, y, clr));
+  }
+}
+
+function screenShake(intensity) {
+  shakeAmount = intensity;
+}
+
+function updateShake() {
+  shakeAmount = lerp(shakeAmount, 0, 0.2);
+  if (shakeAmount < 0.5) shakeAmount = 0;
+}
+
+function completeStage() {
+  currentStage++;
+  let goldReward = 2;
+  if (playerRelic === "Greed") {
+    goldReward += random([0, 0, 1, 1, 2]); 
+  }
+  inventory.gold += goldReward;
+  
+  createFloatText(`+${goldReward} GOLD`, width/2, 120, color(255, 215, 0), true);
+  
+  if (gameMode === "Endless") {
+    gameState = "SHOP";
+  } else if (currentStage > maxStages) {
+    gameState = "VICTORY";
+  } else {
+    gameState = "SHOP";
+  }
 }
 
 function getTypeColor(t) {
@@ -966,12 +1032,19 @@ function getTypeColor(t) {
   if (t==="Light") return color(255, 255, 200);
   if (t==="Dark") return color(160, 50, 255);
   if (t==="Normal") return color(200);
+  if (t==="Perfect") return color(128, 0, 0); 
   return color(200);
 }
 
-function getCurrentStageType() { return STAGE_TYPES[(currentStage - 1) % 5]; }
-function screenShake(amt) { shakeAmount = amt; }
-function updateShake() { if (shakeAmount > 0) shakeAmount *= 0.9; if (shakeAmount < 0.5) shakeAmount = 0; }
-let mouseWasPressed = false;
-function mouseReleased() { mouseWasPressed = false; }
-function drawCustomCursor() { noCursor(); fill(255); noStroke(); circle(mouseX, mouseY, 10); }
+// ==========================================
+// 8. MOUSE EVENT HANDLERS
+// ==========================================
+
+let btnClicked = false;
+function mousePressed() {
+  btnClicked = false;
+}
+
+function mouseReleased() {
+  btnClicked = false;
+}
