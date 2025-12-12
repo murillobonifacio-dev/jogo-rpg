@@ -1,18 +1,21 @@
 /*
-  ELEMENTAL LEGENDS: EVOLVED (Versão Final - Full HD)
+  ELEMENTAL LEGENDS: EVOLVED (Versão Final - Gold Fixo e Loja Ajustada)
   -------------------------------------
-  CORREÇÕES:
-  1. Mouse: Cursor do sistema nos menus (sem lag), Mira apenas no jogo.
-  2. Menu Principal: Botões aumentados para resolução 1920x1080.
-  3. Seleção de Classe: Texto na cor preta para melhor leitura.
+  - Resolução: 1920x1080.
+  - Mapa: 2500x2000.
+  - Power-ups: 2 por fase (Triângulos Verdes).
+  - Mouse: Corrigido.
+  - HP: Infinito.
+  - ECONOMIA: 1 Gold por fase (não por inimigo).
+  - LOJA: Aparece apenas a cada 5 fases.
 */
 
 // ==========================================
 // 1. CONFIGURATION & GLOBALS
 // ==========================================
 
-const WORLD_W = 4000; 
-const WORLD_H = 3000;
+const WORLD_W = 2500; 
+const WORLD_H = 2000;
 
 const STAT_CAP = 10;
 const TYPE_CAP = 3;
@@ -77,15 +80,12 @@ function draw() {
     case "VICTORY": drawVictory(); break;
   }
   
-  // Gerenciamento do Mouse (Cursor do sistema vs Mira do jogo)
   handleCursor();
 }
 
-// NOVA FUNÇÃO para corrigir o mouse
 function handleCursor() {
   if (gameState === "GAME" || gameState === "LEVEL_UP") {
-    noCursor(); // Esconde mouse do sistema
-    // Desenha Mira
+    noCursor(); 
     push();
     translate(mouseX, mouseY);
     noFill(); stroke(255); strokeWeight(2);
@@ -94,29 +94,7 @@ function handleCursor() {
     line(0, -15, 0, 15);
     pop();
   } else {
-    cursor(ARROW); // Usa o cursor normal do Windows nos menus para não bugar
-  }
-}
-
-function keyPressed() {
-  if (gameState === "GAME" || gameState === "LEVEL_UP" || gameState === "SHOP") {
-    if (key === '8') {
-      enemiesToSpawn = 0;
-      enemies = [];
-      powerups = []; 
-      createFloatText("STAGE SKIPPED", width/2, 100, color(255, 100, 255), true);
-    }
-    if (key === '9') {
-      if (player.upgradeStat("damage")) {
-        createFloatText("DMG UPGRADE!", width/2, height/2 - 100, color(255, 255, 0), true);
-      } else {
-        createFloatText("DMG MAX", width/2, height/2 - 100, color(200), true);
-      }
-    }
-    if (key === '0') {
-      inventory.gold += 1;
-      createFloatText("+1 GOLD", width/2, height/2 - 50, color(255, 215, 0), true);
-    }
+    cursor(ARROW); 
   }
 }
 
@@ -173,7 +151,7 @@ function startStage() {
     }
   }
   
-  for (let i = 0; i < 4; i++) powerups.push(new PowerUp());
+  for (let i = 0; i < 2; i++) powerups.push(new PowerUp());
   
   enemiesToSpawn = 5 + floor(currentStage * 1.5);
 }
@@ -489,7 +467,8 @@ class Player {
   }
   
   upgradeStat(statKey) {
-    if (this.levels[statKey] === STAT_CAP && statKey !== "typeLvl") return false;
+    // ALTERAÇÃO: MaxHP não tem cap (HP Infinito)
+    if (statKey !== "maxHp" && this.levels[statKey] === STAT_CAP && statKey !== "typeLvl") return false;
     if (this.levels[statKey] === TYPE_CAP && statKey === "typeLvl") return false;
     
     this.levels[statKey]++;
@@ -578,8 +557,7 @@ class Enemy {
     createFloatText("-" + amt, this.pos.x, this.pos.y - 10, txtColor);
     
     if (this.hp <= 0) {
-      inventory.gold++;
-      createFloatText("+1", this.pos.x, this.pos.y, color(255, 215, 0));
+      // ALTERAÇÃO: Removido ganho de Gold aqui
       let index = enemies.indexOf(this);
       if (index > -1) enemies.splice(index, 1);
     }
@@ -642,14 +620,18 @@ class PowerUp {
   constructor() {
     this.pos = createVector(random(50, WORLD_W - 50), random(50, WORLD_H - 50));
     this.size = 20;
+    this.angle = 0;
   }
   
   show() {
-    fill(255, 255, 0);
-    rect(this.pos.x, this.pos.y, this.size, this.size, 4);
-    fill(0);
-    textSize(10);
-    text("UP", this.pos.x, this.pos.y);
+    this.angle += 0.05;
+    push();
+    translate(this.pos.x, this.pos.y);
+    rotate(this.angle);
+    fill(50, 255, 50); 
+    noStroke();
+    triangle(0, -this.size, this.size, this.size, -this.size, this.size);
+    pop();
   }
   
   checkCollision(target) {
@@ -832,6 +814,9 @@ function drawLevelUpOverlay() {
     let limit = (s.k === "typeLvl") ? TYPE_CAP : STAT_CAP;
     let isMax = lvl >= limit;
     
+    // ALTERAÇÃO: HP nunca fica MAX
+    if (s.k === "maxHp") isMax = false;
+
     let txt = isMax ? `${s.n} (MAX)` : `${s.n} ${lvl}`;
     if (s.k === "typeLvl" && lvl >= TYPE_CAP) txt = `${s.n} (EVOLVED)`;
     
@@ -907,8 +892,9 @@ PASSIVES (Evolve at Type Lv3):
 MECHANICS:
 - Water>Fire>Plant>Water.
 - Light/Dark beat others.
-- Perfect beat any one`;
-  
+- Crits STUN enemies.
+
+HP Upgrades are infinite!`;
   text(txt, width/2 - 300, 250);
   textAlign(CENTER, CENTER);
   drawBack("MENU");
@@ -951,7 +937,6 @@ function drawWorldGrid() {
   noStroke();
 }
 
-// ATUALIZADO: Agora aceita txtClr (cor do texto)
 function drawBtn(txt, x, y, w, h, callback, clr = color(50, 50, 50), txtClr = color(255)) {
   push();
   let over = mouseX > x - w/2 && mouseX < x + w/2 && mouseY > y - h/2 && mouseY < y + h/2;
@@ -967,7 +952,7 @@ function drawBtn(txt, x, y, w, h, callback, clr = color(50, 50, 50), txtClr = co
   
   fill(clr);
   rect(x, y, w, h, 8);
-  fill(txtClr); // Usa a cor de texto passada
+  fill(txtClr); 
   textSize(24);
   text(txt, x, y);
   pop();
@@ -1007,20 +992,20 @@ function updateShake() {
 
 function completeStage() {
   currentStage++;
-  let goldReward = 2;
+  let goldReward = 1; // Base 1 Gold
   if (playerRelic === "Greed") {
-    goldReward += random([0, 0, 1, 1, 2]); 
+    goldReward += 1; // +1 with Greed
   }
   inventory.gold += goldReward;
   
   createFloatText(`+${goldReward} GOLD`, width/2, 120, color(255, 215, 0), true);
   
-  if (gameMode === "Endless") {
-    gameState = "SHOP";
-  } else if (currentStage > maxStages) {
+  if (gameMode === "Campaign" && currentStage > maxStages) {
     gameState = "VICTORY";
+  } else if ((currentStage - 1) % 5 === 0) {
+    gameState = "SHOP"; // Shop every 5 stages
   } else {
-    gameState = "SHOP";
+    startStage();
   }
 }
 
@@ -1030,7 +1015,7 @@ function getTypeColor(t) {
   if (t==="Plant") return color(80, 255, 80);
   if (t==="Light") return color(255, 255, 0);
   if (t==="Dark") return color(160, 50, 255);
-  if (t==="Normal") return color(230);
+  if (t==="Normal") return color(220);
   if (t==="Perfect") return color(128, 0, 0); 
   return color(200);
 }
