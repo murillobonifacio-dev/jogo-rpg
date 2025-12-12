@@ -907,9 +907,8 @@ PASSIVES (Evolve at Type Lv3):
 MECHANICS:
 - Water>Fire>Plant>Water.
 - Light/Dark beat others.
-- Crits STUN enemies.
-
-CHEATS: 8=Skip Stage, 9=DMG Up, 0=Gold.`;
+- Perfect beat any one`;
+  
   text(txt, width/2 - 300, 250);
   textAlign(CENTER, CENTER);
   drawBack("MENU");
@@ -1029,9 +1028,9 @@ function getTypeColor(t) {
   if (t==="Fire") return color(255, 80, 80);
   if (t==="Water") return color(80, 80, 255);
   if (t==="Plant") return color(80, 255, 80);
-  if (t==="Light") return color(255, 255, 200);
+  if (t==="Light") return color(255, 255, 0);
   if (t==="Dark") return color(160, 50, 255);
-  if (t==="Normal") return color(200);
+  if (t==="Normal") return color(230);
   if (t==="Perfect") return color(128, 0, 0); 
   return color(200);
 }
