@@ -1,13 +1,9 @@
 /*
-  ELEMENTAL LEGENDS: EVOLVED (Versão Final - Gold Fixo e Loja Ajustada)
+  ELEMENTAL LEGENDS: EVOLVED (Versão Final - Baby Auto-Aim)
   -------------------------------------
   - Resolução: 1920x1080.
-  - Mapa: 2500x2000.
-  - Power-ups: 2 por fase (Triângulos Verdes).
-  - Mouse: Corrigido.
-  - HP: Infinito.
-  - ECONOMIA: 1 Gold por fase (não por inimigo).
-  - LOJA: Aparece apenas a cada 5 fases.
+  - 4 Modos de Mira: Keyboard, Isaac (4-lados), Mouse, Baby (Auto-Aim).
+  - Vida inicial do inimigo ajustável na classe Enemy.
 */
 
 // ==========================================
@@ -47,6 +43,9 @@ let enemiesToSpawn = 0;
 
 let unlockedTypes = ["Fire", "Water", "Plant", "Light", "Dark", "Normal"]; 
 
+// Modos de mira: "Keyboard", "Isaac", "Mouse", "Baby"
+let aimMode = "Keyboard"; 
+
 // ==========================================
 // 2. SETUP & MAIN LOOP
 // ==========================================
@@ -68,11 +67,13 @@ function draw() {
   switch (gameState) {
     case "MENU": drawMenu(); break;
     case "HOW_TO": drawHowTo(); break;
+    case "UPDATE_LOG": drawUpdateLog(); break;
     case "CUSTOMIZE": drawCustomize(); break;
     case "DIFFICULTY": drawDifficultySelect(); break;
     case "MODE": drawModeSelect(); break;
     case "SELECT_TYPE": drawTypeSelect(); break;
     case "SELECT_RELIC": drawRelicSelect(); break;
+    case "CONFIGS": drawConfigs(); break; 
     case "GAME": runGameLogic(); break;
     case "LEVEL_UP": runGameLogic(true); drawLevelUpOverlay(); break;
     case "SHOP": drawShop(); break;
@@ -84,22 +85,16 @@ function draw() {
 }
 
 function handleCursor() {
-  if (gameState === "GAME" || gameState === "LEVEL_UP") {
-    noCursor(); 
-    push();
-    translate(mouseX, mouseY);
-    noFill(); stroke(255); strokeWeight(2);
-    ellipse(0, 0, 20, 20);
-    line(-15, 0, 15, 0);
-    line(0, -15, 0, 15);
-    pop();
-  } else {
+  // O cursor só deve ser visível (Mouse) se o modo for Mouse OU se não estiver no GAME
+  if (aimMode === "Mouse" || gameState !== "GAME") {
     cursor(ARROW); 
+  } else {
+    noCursor(); // Oculta o cursor durante o jogo nos modos de teclado
   }
 }
 
 // ==========================================
-// 3. GAMEPLAY ENGINE
+// 3. GAMEPLAY ENGINE (runGameLogic)
 // ==========================================
 
 function startGame() {
@@ -108,7 +103,7 @@ function startGame() {
   
   player = new Player();
   player.color = playerColor;
- 
+  
   if (playerType === "Perfect") {
     player.levels.typeLvl = TYPE_CAP; 
   }
@@ -197,7 +192,7 @@ function runGameLogic(paused = false) {
       e.update();
       if (e.checkCollision(player)) {
         player.takeDamage(1);
-        e.pushBack(200); 
+        e.pushBack(200);  
       }
     }
   }
@@ -235,6 +230,8 @@ function runGameLogic(paused = false) {
       if (floatText[i].life <= 0) floatText.splice(i, 1);
     }
   }
+  
+  if (!paused) drawAimIndicator(); 
   
   pop();
   
@@ -311,7 +308,7 @@ function handleCombat(proj, target) {
   let evolved = player.levels.typeLvl >= TYPE_CAP;
 
   if (playerType === "Fire") {
-    let burnDmg = 1 + (player.levels.damage * 0.5); 
+    let burnDmg = 1 + (player.levels.damage * 2); 
     target.ignite(burnDmg);
     if (evolved) {
       for (let e of enemies) {
@@ -376,7 +373,7 @@ function calculateDamage(atk, def) {
 }
 
 // ==========================================
-// 5. CLASSES
+// 5. CLASSES (Player.update e Enemy.constructor)
 // ==========================================
 
 class Player {
@@ -398,14 +395,17 @@ class Player {
     
     this.cooldown = 0;
     this.invuln = 0;
+    this.shootDir = createVector(0, -1); 
+    this.isShooting = false; 
+    this.mouseTarget = createVector(0, 0); 
   }
   
   update() {
     let move = createVector(0,0);
-    if (keyIsDown(87)) move.y -= 1; 
-    if (keyIsDown(83)) move.y += 1; 
-    if (keyIsDown(65)) move.x -= 1; 
-    if (keyIsDown(68)) move.x += 1; 
+    if (keyIsDown(87)) move.y -= 1;  
+    if (keyIsDown(83)) move.y += 1;  
+    if (keyIsDown(65)) move.x -= 1;  
+    if (keyIsDown(68)) move.x += 1;  
     
     if (move.mag() > 0) {
       move.normalize().mult(this.stats.speed);
@@ -419,11 +419,94 @@ class Player {
     if (this.invuln > 0) this.invuln--;
     
     let fireRate = 60 / (1 + (this.stats.atkSpeed * 0.2));
-    if (this.cooldown <= 0) {
-      if (keyIsDown(UP_ARROW)) this.shoot(0, -1, fireRate);
-      else if (keyIsDown(DOWN_ARROW)) this.shoot(0, 1, fireRate);
-      else if (keyIsDown(LEFT_ARROW)) this.shoot(-1, 0, fireRate);
-      else if (keyIsDown(RIGHT_ARROW)) this.shoot(1, 0, fireRate);
+    
+    // --- LÓGICA DE MIRA E TIRO ---
+    
+    if (aimMode === "Keyboard" || aimMode === "Isaac" || aimMode === "Baby") {
+      
+      let aimX = 0;
+      let aimY = 0;
+      if (keyIsDown(LEFT_ARROW)) aimX -= 1;
+      if (keyIsDown(RIGHT_ARROW)) aimX += 1;
+      if (keyIsDown(UP_ARROW)) aimY -= 1;
+      if (keyIsDown(DOWN_ARROW)) aimY += 1;
+      
+      let newDir = createVector(aimX, aimY);
+      
+      if (aimMode === "Keyboard") {
+        
+        // Modo 1: Mira com Setas, Atira com Espaço (Manual e Suave)
+        if (newDir.mag() > 0) {
+           let targetDir = newDir.normalize();
+           this.shootDir.x = lerp(this.shootDir.x, targetDir.x, 0.2); 
+           this.shootDir.y = lerp(this.shootDir.y, targetDir.y, 0.2);
+           this.shootDir.normalize();
+        }
+        
+        if (this.isShooting && this.cooldown <= 0) {
+          this.shoot(this.shootDir.x, this.shootDir.y, fireRate);
+        }
+        
+      } else if (aimMode === "Isaac") {
+        
+        // Modo 2: Mira e Atira Cardinalmente (The Binding of Isaac)
+        if (newDir.mag() > 0 && this.cooldown <= 0) {
+            let absX = abs(aimX);
+            let absY = abs(aimY);
+            let shootDirX = 0;
+            let shootDirY = 0;
+
+            if (absX >= absY && absX > 0) {
+                shootDirX = aimX > 0 ? 1 : -1;
+            } else if (absY > absX && absY > 0) {
+                shootDirY = aimY > 0 ? 1 : -1;
+            } else if (absX > 0) { 
+              shootDirX = aimX;
+              shootDirY = aimY;
+            }
+
+            if (shootDirX !== 0 || shootDirY !== 0) {
+              this.shootDir.set(shootDirX, shootDirY);
+              this.shoot(shootDirX, shootDirY, fireRate);
+            }
+        }
+      } else if (aimMode === "Baby") {
+        
+        // Modo 4: Auto-Aim (Baby/Sentinel)
+        if (this.cooldown <= 0) {
+            let closestEnemy = null;
+            let minDist = Infinity;
+            
+            for (let e of enemies) {
+                let d = dist(this.pos.x, this.pos.y, e.pos.x, e.pos.y);
+                if (d < minDist) {
+                    minDist = d;
+                    closestEnemy = e;
+                }
+            }
+            
+            if (closestEnemy) {
+                let dirToEnemy = p5.Vector.sub(closestEnemy.pos, this.pos).normalize();
+                this.shootDir = dirToEnemy; 
+                this.shoot(dirToEnemy.x, dirToEnemy.y, fireRate);
+            }
+        }
+      }
+      
+    } else { // aimMode === "Mouse"
+      
+      // Modo 3: Mira e Atira com Mouse (Mouse)
+      let mouseX_world = mouseX + cam.x;
+      let mouseY_world = mouseY + cam.y;
+      
+      this.mouseTarget.set(mouseX_world, mouseY_world);
+      
+      let dirToMouse = p5.Vector.sub(this.mouseTarget, this.pos).normalize();
+      this.shootDir = dirToMouse;
+      
+      if (mouseIsPressed && mouseButton === LEFT && this.cooldown <= 0) {
+        this.shoot(this.shootDir.x, this.shootDir.y, fireRate);
+      }
     }
   }
   
@@ -467,7 +550,6 @@ class Player {
   }
   
   upgradeStat(statKey) {
-    // ALTERAÇÃO: MaxHP não tem cap (HP Infinito)
     if (statKey !== "maxHp" && this.levels[statKey] === STAT_CAP && statKey !== "typeLvl") return false;
     if (this.levels[statKey] === TYPE_CAP && statKey === "typeLvl") return false;
     
@@ -491,7 +573,11 @@ class Enemy {
     this.size = 24;
     this.type = type;
     this.color = getTypeColor(type);
-    this.maxHp = 2 + floor(currentStage * 0.5);
+    
+    // 🎯 LOCAL PARA ALTERAR A VIDA INICIAL DOS INIMIGOS
+    // '2' é o HP base, que é escalado com o stage (currentStage * 0.5).
+    this.maxHp = 10 + floor(currentStage * 1.5); 
+    
     this.hp = this.maxHp;
     this.speed = 1.5 + (currentStage * 0.05);
     this.isStunned = 0;
@@ -557,7 +643,6 @@ class Enemy {
     createFloatText("-" + amt, this.pos.x, this.pos.y - 10, txtColor);
     
     if (this.hp <= 0) {
-      // ALTERAÇÃO: Removido ganho de Gold aqui
       let index = enemies.indexOf(this);
       if (index > -1) enemies.splice(index, 1);
     }
@@ -687,7 +772,7 @@ class Particle {
 }
 
 // ==========================================
-// 6. UI & MENUS (Atualizado)
+// 6. UI & MENUS 
 // ==========================================
 
 function drawMenu() {
@@ -696,11 +781,31 @@ function drawMenu() {
   text("ELEMENTAL LEGENDS", width/2, 180);
   textStyle(NORMAL);
   
-  let y = 450;
-  // Botões maiores
+  let y = 350;
   drawBtn("PLAY", width/2, y, 400, 80, () => gameState = "DIFFICULTY");
   drawBtn("CUSTOMIZE", width/2, y+100, 400, 80, () => gameState = "CUSTOMIZE");
-  drawBtn("HOW TO PLAY", width/2, y+200, 400, 80, () => gameState = "HOW_TO");
+  drawBtn("CONFIGURAÇÕES", width/2, y+200, 400, 80, () => gameState = "CONFIGS");
+  drawBtn("HOW TO PLAY", width/2, y+300, 400, 80, () => gameState = "HOW_TO");
+  drawBtn("UPDATE LOG", width/2, y+400, 400, 80, () => gameState = "UPDATE_LOG"); 
+}
+
+function drawConfigs() {
+  drawMenuBg(); drawTitle("CONFIGURAÇÕES");
+  
+  let modeText = "";
+  if (aimMode === "Keyboard") modeText = "TECLADO (Setas: Mira Suave, Espaço: Atira)";
+  else if (aimMode === "Isaac") modeText = "ISAAC (Setas: Mira e Atira | 4 Lados)";
+  else if (aimMode === "Mouse") modeText = "MOUSE (Mira: Mouse, Atira: Clique Esquerdo)";
+  else if (aimMode === "Baby") modeText = "BABY (Auto-Aim: Mira e Atira no inimigo mais próximo)";
+  
+  drawBtn(`MODO DE MIRA: ${modeText}`, width/2, 400, 700, 80, () => {
+    if (aimMode === "Keyboard") aimMode = "Isaac";
+    else if (aimMode === "Isaac") aimMode = "Mouse";
+    else if (aimMode === "Mouse") aimMode = "Baby";
+    else if (aimMode === "Baby") aimMode = "Keyboard";
+  });
+  
+  drawBack("MENU");
 }
 
 function drawDifficultySelect() {
@@ -733,7 +838,6 @@ function drawTypeSelect() {
     if (t==="Normal") desc = "(Neutral)";
     if (t==="Perfect") desc = "(+25% Dano Universal)";
     
-    // Cor do texto adicionada como argumento final (color(0) = preto)
     drawBtn(`${t} ${desc}`, width/2, y, 600, 55, () => { 
       playerType = t; 
       if (t === "Perfect") {
@@ -758,9 +862,17 @@ function drawRelicSelect() {
 
 function drawCustomize() {
   drawMenuBg(); drawTitle("COLOR");
-  let colors = [color(0,255,255), color(255,50,50), color(50,255,50), color(255,255,0), color(255,0,255), color(255)];
+  let colors = [
+    color(0,255,255), color(255,0,0), color(0,255,0), 
+    color(255,255,0), color(255,0,255), color(255),
+    color(255,100,0), color(150,0,255), color(0), color(150), 
+    color(0,0,255), color(50,100,0), color(70,35,0), color(255,150,255)
+  ];
+  
+  let startX = width/2 - (7 * 100) + 50; 
+  
   for(let i=0; i<colors.length; i++) {
-    let x = (width/2 - 250) + (i*100);
+    let x = startX + (i*100);
     fill(colors[i]);
     if (dist(mouseX, mouseY, x, height/2) < 30) {
       stroke(255); strokeWeight(3);
@@ -814,7 +926,6 @@ function drawLevelUpOverlay() {
     let limit = (s.k === "typeLvl") ? TYPE_CAP : STAT_CAP;
     let isMax = lvl >= limit;
     
-    // ALTERAÇÃO: HP nunca fica MAX
     if (s.k === "maxHp") isMax = false;
 
     let txt = isMax ? `${s.n} (MAX)` : `${s.n} ${lvl}`;
@@ -865,7 +976,7 @@ function drawVictory() {
   textAlign(CENTER, CENTER); textStyle(BOLD); 
   fill(50, 255, 50); textSize(100); text("VICTORY", width/2, height/2 - 100);
   textStyle(NORMAL);
- 
+  
   if (gameMode === "Campaign" && !unlockedTypes.includes("Perfect")) {
     unlockedTypes.push("Perfect");
     createFloatText("TIPO PERFECT DESBLOQUEADO!", width/2, height/2 + 20, color(128, 0, 0), true);
@@ -877,8 +988,15 @@ function drawVictory() {
 function drawHowTo() {
   drawMenuBg(); drawTitle("INSTRUCTIONS");
   textAlign(LEFT, TOP); fill(200); textSize(24);
+  
+  let controls;
+  if (aimMode === "Keyboard") controls = "WASD (Move), ARROWS (Aim), SPACEBAR (Shoot).";
+  else if (aimMode === "Isaac") controls = "WASD (Move), ARROWS (Aim and Shoot automatically, 4-way only).";
+  else if (aimMode === "Baby") controls = "WASD (Move), AUTO-AIM (Mira e atira no inimigo mais próximo).";
+  else controls = "WASD (Move), MOUSE (Aim), LEFT CLICK (Shoot).";
+    
   let txt = 
-`WASD to Move, ARROWS to Shoot.
+`${controls}
 
 PASSIVES (Evolve at Type Lv3):
 - Fire: Burn (Evolved: Spreads).
@@ -892,9 +1010,40 @@ PASSIVES (Evolve at Type Lv3):
 MECHANICS:
 - Water>Fire>Plant>Water.
 - Light/Dark beat others.
-- Crits STUN enemies.
+- Perfect beat Any one`;
+  
+  text(txt, width/2 - 300, 250);
+  textAlign(CENTER, CENTER);
+  drawBack("MENU");
+}
 
-HP Upgrades are infinite!`;
+function drawUpdateLog() {
+  drawMenuBg(); drawTitle("UPDATE LOG");
+  textAlign(LEFT, TOP); fill(200); textSize(24);
+  let txt = 
+`
+
+Update 0.3.0 BETA / Combat Aim
+
+// Balancing
+- BURN adjustment: 20% > 50% damage
+- The evolved BURN's hitbox is larger.
+
+// Added
+-3 new aiming modes:
+- Isaac: old classic style
+- Keyboard: arrow keys and space bar
+- Mouse: aim with the mouse and shoot with the left mouse button
+- Baby: Auto-aim
+
+- New "configurações" added to the main menu
+- New "update log" added to the main menu
+
+- 8 new Colors on Custom
+
+
+`;
+  
   text(txt, width/2 - 300, 250);
   textAlign(CENTER, CENTER);
   drawBack("MENU");
@@ -907,34 +1056,6 @@ function drawMenuBg() {
   noStroke();
   textAlign(CENTER, CENTER); 
   textStyle(NORMAL); 
-}
-
-// ==========================================
-// 7. AUXILIARY FUNCTIONS
-// ==========================================
-
-function getCurrentStageType() {
-  return STAGE_TYPES[(currentStage - 1) % STAGE_TYPES.length];
-}
-
-function spawnEnemy() {
-  let type = getCurrentStageType();
-  let angle = random(TWO_PI);
-  let r = random(width/2 + 50, width/2 + 100);
-  let x = player.pos.x + r * cos(angle);
-  let y = player.pos.y + r * sin(angle);
-  enemies.push(new Enemy(x, y, type));
-}
-
-function drawWorldGrid() {
-  let stageType = getCurrentStageType();
-  let c = getTypeColor(stageType);
-  background(red(c)*0.2, green(c)*0.2, blue(c)*0.2);
-  
-  stroke(red(c)*0.5, green(c)*0.5, blue(c)*0.5, 100);
-  for(let x=0; x<WORLD_W; x+=40) line(x, 0, x, WORLD_H);
-  for(let y=0; y<WORLD_H; y+=40) line(0, y, WORLD_W, y);
-  noStroke();
 }
 
 function drawBtn(txt, x, y, w, h, callback, clr = color(50, 50, 50), txtClr = color(255)) {
@@ -970,6 +1091,73 @@ function drawBack(targetState) {
   drawBtn("BACK", 100, height - 60, 150, 60, () => gameState = targetState);
 }
 
+// ==========================================
+// 7. AUXILIARY FUNCTIONS 
+// ==========================================
+
+function drawAimIndicator() {
+  // Desativa o indicador de mira nos modos Isaac e Baby
+  if (aimMode === "Isaac" || aimMode === "Baby") return; 
+  
+  let dir;
+  
+  if (aimMode === "Mouse") {
+    // Modo Mouse: Calcula a direção do jogador para o cursor em tempo real
+    let mouseX_world = mouseX + cam.x;
+    let mouseY_world = mouseY + cam.y;
+    dir = p5.Vector.sub(createVector(mouseX_world, mouseY_world), player.pos).normalize();
+  } else {
+    // Usa a direção suave (Keyboard)
+    dir = player.shootDir; 
+  }
+  
+  let angle = dir.heading();
+  let orbitRadius = 40; 
+  
+  let aimX = player.pos.x + orbitRadius * cos(angle);
+  let aimY = player.pos.y + orbitRadius * sin(angle);
+
+  push();
+  translate(aimX, aimY);
+  rotate(angle); 
+  
+  // Desenho da Mira
+  noFill(); stroke(255, 200); strokeWeight(2);
+  let crossSize = 10;
+  
+  fill(255, 50); ellipse(0, 0, 10, 10);
+  
+  line(5, 0, 5 + crossSize, 0); 
+  line(-crossSize/2, 0, crossSize/2, 0); 
+  line(0, -crossSize/2, 0, crossSize/2); 
+  
+  pop();
+}
+
+function getCurrentStageType() {
+  return STAGE_TYPES[(currentStage - 1) % STAGE_TYPES.length];
+}
+
+function spawnEnemy() {
+  let type = getCurrentStageType();
+  let angle = random(TWO_PI);
+  let r = random(width/2 + 50, width/2 + 100);
+  let x = player.pos.x + r * cos(angle);
+  let y = player.pos.y + r * sin(angle);
+  enemies.push(new Enemy(x, y, type));
+}
+
+function drawWorldGrid() {
+  let stageType = getCurrentStageType();
+  let c = getTypeColor(stageType);
+  background(red(c)*0.2, green(c)*0.2, blue(c)*0.2);
+  
+  stroke(red(c)*0.5, green(c)*0.5, blue(c)*0.5, 100);
+  for(let x=0; x<WORLD_W; x+=40) line(x, 0, x, WORLD_H);
+  for(let y=0; y<WORLD_H; y+=40) line(0, y, WORLD_W, y);
+  noStroke();
+}
+
 function createFloatText(txt, x, y, clr, isUI = false) {
   floatText.push(new FloatText(txt, x, y, clr, isUI));
 }
@@ -992,9 +1180,9 @@ function updateShake() {
 
 function completeStage() {
   currentStage++;
-  let goldReward = 1; // Base 1 Gold
+  let goldReward = 1; 
   if (playerRelic === "Greed") {
-    goldReward += 1; // +1 with Greed
+    goldReward += 1; 
   }
   inventory.gold += goldReward;
   
@@ -1003,7 +1191,7 @@ function completeStage() {
   if (gameMode === "Campaign" && currentStage > maxStages) {
     gameState = "VICTORY";
   } else if ((currentStage - 1) % 5 === 0) {
-    gameState = "SHOP"; // Shop every 5 stages
+    gameState = "SHOP"; 
   } else {
     startStage();
   }
@@ -1021,14 +1209,37 @@ function getTypeColor(t) {
 }
 
 // ==========================================
-// 8. MOUSE EVENT HANDLERS
+// 8. MOUSE & KEY EVENT HANDLERS
 // ==========================================
 
 let btnClicked = false;
 function mousePressed() {
   btnClicked = false;
+  
+  // Ativa o isShooting APENAS para o modo Keyboard, para que o tiro continue enquanto Espaço estiver pressionado.
+  if (gameState === "GAME" && aimMode === "Keyboard" && keyCode === 32) { // 32 = SPACEBAR
+    player.isShooting = true;
+  }
 }
 
 function mouseReleased() {
   btnClicked = false;
+  
+  if (aimMode === "Keyboard") {
+    player.isShooting = false;
+  }
+}
+
+function keyPressed() {
+  // Ativa o disparo ao pressionar a barra de espaço (APENAS modo Keyboard)
+  if (gameState === "GAME" && aimMode === "Keyboard" && keyCode === 32) { 
+    player.isShooting = true;
+  }
+}
+
+function keyReleased() {
+  // Para de disparar ao soltar a barra de espaço (APENAS modo Keyboard)
+  if (aimMode === "Keyboard" && keyCode === 32) {
+    player.isShooting = false;
+  }
 }
