@@ -277,7 +277,7 @@ function handleCombat(proj, target) {
     if (calc.modifier < 1.0) calc.modifier = 1.0;
     
     if (playerType === "Dark" && player.levels.typeLvl >= TYPE_CAP) {
-      target.takeDamage(99999);
+      target.takeDamage(140% "damage");
       createExplosion(target.pos.x, target.pos.y, color(255, 0, 0), "CRIT"); 
       screenShake(10);
       return;
