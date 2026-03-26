@@ -856,7 +856,7 @@ function drawRelicSelect() {
   drawMenuBg(); drawTitle("CHOOSE RELIC");
   drawBtn("RELIC OF LIFE\n(+2 Max HP)", width/2, 350, 500, 80, () => { playerRelic="Life"; startGame(); });
   drawBtn("RELIC OF DEATH\n(+10% Crit Chance)", width/2, 450, 500, 80, () => { playerRelic="Death"; startGame(); });
-  drawBtn("RELIC OF GREED\n(Luck for Gold)", width/2, 550, 500, 80, () => { playerRelic="Greed"; startGame(); });
+  drawBtn("RELIC OF GREED\n(2x Gold)", width/2, 550, 500, 80, () => { playerRelic="Greed"; startGame(); });
   drawBack("SELECT_TYPE");
 }
 
