@@ -137,7 +137,7 @@ function startStage() {
   if (playerType === "Plant" && currentStage > 1) {
     let healAmt = 1;
     if (player.levels.typeLvl >= TYPE_CAP) {
-      healAmt = floor(player.stats.maxHp / 4);
+      healAmt = floor(player.stats.maxHp / 10);
       if (healAmt < 1) healAmt = 1;
     }
     if (player.hp < player.stats.maxHp) {
