@@ -263,13 +263,13 @@ function handleCombat(proj, target) {
   
   let actualCritChance = player.stats.critChance;
   if (playerType === "Dark") {
-    actualCritChance += (player.darkStacks * 0.10);
+    actualCritChance += (player.darkStacks * 0.05);
   }
   
   let isCrit = random() < actualCritChance;
   
   if (playerType === "Dark") {
-    if (isCrit) player.darkStacks = min(player.darkStacks + 1, 4);
+    if (isCrit) player.darkStacks = min(player.darkStacks + 1, 10);
     else player.darkStacks = 0;
   }
   
@@ -277,7 +277,7 @@ function handleCombat(proj, target) {
     if (calc.modifier < 1.0) calc.modifier = 1.0;
     
     if (playerType === "Dark" && player.levels.typeLvl >= TYPE_CAP) {
-      target.takeDamage(140% "damage");
+      target.takeDamage(round(player.stats.damage * calc.modifier * player.stats.critDamage * 1.5), color(255, 0, 0));
       createExplosion(target.pos.x, target.pos.y, color(255, 0, 0), "CRIT"); 
       screenShake(10);
       return;
@@ -341,7 +341,7 @@ function handleCombat(proj, target) {
       }
       createExplosion(target.pos.x, target.pos.y, color(255, 255, 200), "AOE");
     } else {
-      target.pushBack(40);
+      target.pushBack(200);
     }
   }
 
@@ -354,7 +354,7 @@ function handleCombat(proj, target) {
 function calculateDamage(atk, def) {
   let m = 1.0;
   
-  if (atk === "Perfect") return { modifier: 1.25 };
+  if (atk === "Perfect") return { modifier: 2.0 };
   if (atk === "Normal") return { modifier: 1.0 };
   
   if (atk === "Water" && (def === "Water" || def === "Fire")) m = 1.2;
