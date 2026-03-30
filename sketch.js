@@ -11,7 +11,7 @@
 // ==========================================
 
 const WORLD_W = 2500; 
-const WORLD_H = 2000;
+const WORLD_H = 2001;
 
 const STAT_CAP = 10;
 const TYPE_CAP = 3;
