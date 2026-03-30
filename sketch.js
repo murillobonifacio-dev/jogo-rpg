@@ -1003,7 +1003,7 @@ PASSIVES (Evolve at Type Lv3):
 - Water: AoE (Evolved: 3x Size).
 - Plant: Regen (Evolved: Poison + Heal 1/4 HP).
 - Light: Shield (Evolved: 10s + AoE Push).
-- Dark: Crit Stack (Evolved: Insta-Kill).
+- Dark: Crit Stack and EVO MegaCrit
 - Normal: No passive, no advantages.
 - Perfect: +25% Universal Damage (No Passive).
 
@@ -1236,6 +1236,11 @@ function keyPressed() {
     player.isShooting = true;
   }
 }
+
+function keyPressed() {
+  if (key === 'g' || key === 'G') {
+    inventory.gold = 0;
+  }
 
 function keyReleased() {
   // Para de disparar ao soltar a barra de espaço (APENAS modo Keyboard)
