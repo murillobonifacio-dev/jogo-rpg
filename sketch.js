@@ -1239,7 +1239,7 @@ function keyPressed() {
 
 function keyPressed() {
   if (key === 'g' || key === 'G') {
-    inventory.gold = 0;
+    inventory.gold = 67000;
   }
 
 function keyReleased() {
