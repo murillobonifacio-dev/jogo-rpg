@@ -336,12 +336,12 @@ function handleCombat(proj, target) {
     if (evolved) {
       for (let e of enemies) {
         if (dist(e.pos.x, e.pos.y, target.pos.x, target.pos.y) < 150) {
-           e.pushBack(180);
+           e.pushBack(150);
         }
       }
       createExplosion(target.pos.x, target.pos.y, color(255, 255, 200), "AOE");
     } else {
-      target.pushBack(200);
+      target.pushBack(450);
     }
   }
 
@@ -418,7 +418,7 @@ class Player {
     if (this.cooldown > 0) this.cooldown--;
     if (this.invuln > 0) this.invuln--;
     
-    let fireRate = 60 / (1 + (this.stats.atkSpeed * 0.2));
+    let fireRate = 60 / (1 + (this.stats.atkSpeed * 0.3));
     
     // --- LÓGICA DE MIRA E TIRO ---
     
