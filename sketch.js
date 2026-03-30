@@ -430,7 +430,7 @@ class Player {
       if (keyIsDown(RIGHT_ARROW)) aimX += 1;
       if (keyIsDown(UP_ARROW)) aimY -= 1;
       if (keyIsDown(DOWN_ARROW)) aimY += 1;
-      
+
       let newDir = createVector(aimX, aimY);
       
       if (aimMode === "Keyboard") {
@@ -579,7 +579,7 @@ class Enemy {
     this.maxHp = 10 + floor(currentStage * 1.5); 
     
     this.hp = this.maxHp;
-    this.speed = 1.5 + (currentStage * 0.05);
+    this.speed = 1.5 + (currentStage * 0.2);
     this.isStunned = 0;
     this.isBurning = 0;
     this.isPoisoned = 0;
@@ -1023,23 +1023,23 @@ function drawUpdateLog() {
   let txt = 
 `
 
-Update 0.3.0 BETA / Combat Aim
+Update 0.3.1 BETA / QOL
 
 // Balancing
-- BURN adjustment: 20% > 50% damage
-- The evolved BURN's hitbox is larger.
+--- Dark ---
+- Max DarkChain increased from 1>4 to 1>10
+- The chance that DarkChain increases decreased from 10% to 5%
+- DarkEVO no longer has an additional skill
+- The 99999 damage from DarkEVO has been removed
 
-// Added
--3 new aiming modes:
-- Isaac: old classic style
-- Keyboard: arrow keys and space bar
-- Mouse: aim with the mouse and shoot with the left mouse button
-- Baby: Auto-aim
+--- Plant ---
+- PlantEVO SuperRegeneration decreases from 25% to 10%
 
-- New "configurações" added to the main menu
-- New "update log" added to the main menu
+---Perfect---
+- The SuperAdvantage of Perfect has increased from 25% to 100%.
 
-- 8 new Colors on Custom
+--- Light ---
+- The Light's knockback has been increased by 3X.
 
 
 `;
@@ -1236,11 +1236,6 @@ function keyPressed() {
     player.isShooting = true;
   }
 }
-
-function keyPressed() {
-  if (key === 'g' || key === 'G') {
-    inventory.gold = 67000;
-  }
 
 function keyReleased() {
   // Para de disparar ao soltar a barra de espaço (APENAS modo Keyboard)
