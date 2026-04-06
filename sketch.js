@@ -865,7 +865,7 @@ function drawCustomize() {
   let colors = [
     color(0,255,255), color(255,0,0), color(0,255,0), 
     color(255,255,0), color(255,0,255), color(255),
-    color(255,100,0), color(150,0,255), color(0), color(150), 
+    color(255,100,0), color(150,0,255), color(128, 0, 0), color(150), 
     color(0,0,255), color(50,100,0), color(70,35,0), color(255,150,255)
   ];
   
